@@ -1,0 +1,277 @@
+//@version=5
+strategy("SuperTend Modified", overlay=true, pyramiding=0, initial_capital=100000, commission_type=strategy.commission.cash_per_order, commission_value=0.37, slippage=2, default_qty_type=strategy.cash, default_qty_value=100000)
+plot(ta.ema(high,34))
+plot(ta.ema(low,34))
+// if (close>ta.ema(high,34) and open<ta.ema(high,34))a
+//     // strategy.entry("Buy",strategy.long)
+// if(close<ta.ema(low,34) and open>ta.ema(low,34))
+//     strategy.entry("Sell",strategy.short)
+// TP and SL///
+SL = 200.00
+rr= 100.00
+trailstop=15.00
+trailofset=10.00
+useTPandSL = input(defval = true, title = "Use exit order strategy?")
+Stop = rr*10
+Take=SL*10
+Q = 100
+// if(useTPandSL)
+//     strategy.exit("Exit Long", "Buy", qty_percent=Q, profit= Take, loss=Stop,trail_points=trailstop*10,trail_offset=trailofset*10)
+//     strategy.exit("Exit Short", "Sell", qty_percent=Q, profit= Take, loss=Stop,trail_points=trailstop*10,trail_offset=trailofset*10)
+trail_level = ta.highest(high, 2) - trailstop * syminfo.mintick
+offset_level = ta.highest(high, 2) - trailofset * syminfo.mintick
+
+// Update stop loss level
+if ta.crossover(high, trail_level)
+    SL := trail_level
+else if ta.crossover(high, offset_level)
+    SL := offset_level
+
+// strategy("SuperTend 1.0.0", overlay=true, pyramiding=0, initial_capital=100000, commission_type=strategy.commission.cash_per_order, commission_value=0.37, slippage=2, default_qty_type=strategy.cash, default_qty_value=100000)
+
+desiredTimeframe = "4H"
+desiredClose = request.security(syminfo.tickerid, desiredTimeframe, close)
+
+src = input(close, title='Source')
+mav = 'HULL'
+length = 150
+Periods = input(title='ATR Period', defval=10)
+Multiplier = input.float(title='ATR Multiplier', step=0.1, defval=0.5)
+changeATR = input(title='Change ATR Calculation Method ?', defval=true)
+showsignals = input(title='Show Buy/Sell Signals ?', defval=false)
+highlighting = input(title='Highlighter On/Off ?', defval=true)
+
+
+
+T3a1 = input.float(0.7, 'TILLSON T3 Volume Factor', step=0.1)
+
+
+Var_Func(src, length) =>
+    valpha = 2 / (length + 1)
+    vud1 = src > src[1] ? src - src[1] : 0
+    vdd1 = src < src[1] ? src[1] - src : 0
+    vUD = math.sum(vud1, 9)
+    vDD = math.sum(vdd1, 9)
+    vCMO = nz((vUD - vDD) / (vUD + vDD))
+    VAR = 0.0
+    VAR := nz(valpha * math.abs(vCMO) * src) + (1 - valpha * math.abs(vCMO)) * nz(VAR[1])
+    VAR
+VAR = Var_Func(src, length)
+DEMA = 2 * ta.ema(src, length) - ta.ema(ta.ema(src, length), length)
+Wwma_Func(src, length) =>
+    wwalpha = 1 / length
+    WWMA = 0.0
+    WWMA := wwalpha * src + (1 - wwalpha) * nz(WWMA[1])
+    WWMA
+WWMA = Wwma_Func(src, length)
+Zlema_Func(src, length) =>
+    zxLag = length / 2 == math.round(length / 2) ? length / 2 : (length - 1) / 2
+    zxEMAData = src + src - src[zxLag]
+    ZLEMA = ta.ema(zxEMAData, length)
+    ZLEMA
+ZLEMA = Zlema_Func(src, length)
+Tsf_Func(src, length) =>
+    lrc = ta.linreg(src, length, 0)
+    lrc1 = ta.linreg(src, length, 1)
+    lrs = lrc - lrc1
+    TSF = ta.linreg(src, length, 0) + lrs
+    TSF
+TSF = Tsf_Func(src, length)
+HMA = ta.wma(2 * ta.wma(src, length / 2) - ta.wma(src, length), math.round(math.sqrt(length)))
+T3e1 = ta.ema(src, length)
+T3e2 = ta.ema(T3e1, length)
+T3e3 = ta.ema(T3e2, length)
+T3e4 = ta.ema(T3e3, length)
+T3e5 = ta.ema(T3e4, length)
+T3e6 = ta.ema(T3e5, length)
+T3c1 = -T3a1 * T3a1 * T3a1
+T3c2 = 3 * T3a1 * T3a1 + 3 * T3a1 * T3a1 * T3a1
+T3c3 = -6 * T3a1 * T3a1 - 3 * T3a1 - 3 * T3a1 * T3a1 * T3a1
+T3c4 = 1 + 3 * T3a1 + T3a1 * T3a1 * T3a1 + 3 * T3a1 * T3a1
+T3 = T3c1 * T3e6 + T3c2 * T3e5 + T3c3 * T3e4 + T3c4 * T3e3
+
+
+getMA(src, length) =>
+    ma = 0.0
+    if mav == 'SMA'
+        ma := ta.sma(src, length)
+        ma
+
+    if mav == 'EMA'
+        ma := ta.ema(src, length)
+        ma
+
+    if mav == 'WMA'
+        ma := ta.wma(src, length)
+        ma
+
+    if mav == 'DEMA'
+        ma := DEMA
+        ma
+
+    if mav == 'TMA'
+        ma := ta.sma(ta.sma(src, math.ceil(length / 2)), math.floor(length / 2) + 1)
+        ma
+
+    if mav == 'VAR'
+        ma := VAR
+        ma
+
+    if mav == 'WWMA'
+        ma := WWMA
+        ma
+
+    if mav == 'ZLEMA'
+        ma := ZLEMA
+        ma
+
+    if mav == 'TSF'
+        ma := TSF
+        ma
+
+    if mav == 'HULL'
+        ma := HMA
+        ma
+
+    if mav == 'TILL'
+        ma := T3
+        ma
+    ma
+
+MA = getMA(src, length)
+
+
+
+atr2 = ta.sma(ta.tr, Periods)
+atr = changeATR ? ta.atr(Periods) : atr2
+up = MA - Multiplier * atr
+up1 = nz(up[1], up)
+up := close[1] > up1 ? math.max(up, up1) : up
+dn = MA + Multiplier * atr
+dn1 = nz(dn[1], dn)
+dn := close[1] < dn1 ? math.min(dn, dn1) : dn
+trend = 1
+trend := nz(trend[1], trend)
+trend := trend == -1 and close > dn1 ? 1 : trend == 1 and close < up1 ? -1 : trend
+upPlot = plot(trend == 1 ? up : na, title='Up Trend', color=color.new(color.green, 100), linewidth=0, style=plot.style_linebr)
+
+buySignal = trend == 1 and trend[1] == -1
+u = buySignal ? up : na
+plotshape(u, title='UpTrend Begins', location=location.absolute, style=shape.circle, size=size.tiny, color=color.new(color.green, 100))
+// plotshape(buySignal and showsignals ? up : na, title='Buy', text='Buy', location=location.absolute, style=shape.labelup, size=size.tiny, color=color.new(color.green, 0), textcolor=color.new(color.white, 0))
+dnPlot = plot(trend == 1 ? na : dn, title='Down Trend', style=plot.style_linebr, linewidth=0, color=color.new(color.red, 100))
+sellSignal = trend == -1 and trend[1] == 1
+d = sellSignal ? dn : na
+plotshape(d, title='DownTrend Begins', location=location.absolute, style=shape.circle, size=size.tiny, color=color.new(color.red, 100))
+// plotshape(sellSignal and showsignals ? dn : na, title='Sell', text='Sell', location=location.absolute, style=shape.labeldown, size=size.tiny, color=color.new(color.red, 0), textcolor=color.new(color.white, 0))
+mPlot = plot(ohlc4, title='', style=plot.style_circles, linewidth=0)
+colorup = input.color(defval = color.new(color.green, 60), title = "ColorU", inline = 'color')
+colordown = input.color(defval = color.new(color.red, 60), title = "ColorD", inline = 'color')
+longFillColor = highlighting ? trend == 1 ? colorup : color.white : color.new(color.white, 100)
+shortFillColor = highlighting ? trend == -1 ? colordown : color.white : color.new(color.white, 100)
+fill(mPlot, upPlot, title='UpTrend Highligter', color=longFillColor)
+fill(mPlot, dnPlot, title='DownTrend Highligter', color=shortFillColor)
+
+var bool positionClose = false
+var bool positionOpen = false
+// smaLength = 50
+// sma100 =100
+// ema200 = 200
+// ema21 = 21
+smaV=ta.ema(close,200)
+ema21=ta.ema(close,21)
+// smaVal = ta.sma(close,100)
+// smaValue = ta.sma(close, 50)
+
+// crossOver = ta.crossover(close, smaV)
+// crossUnder = ta.crossunder(close, smaV)
+// t = 0
+// t := close > smaVal ? 1 : close < smaVal ? -1 : t[1]
+var float smap = na
+buySignaal = u and smaV>close
+// buySignal = trend == 1 and trend[1] == -1 and ema21V>smaValue and ema21V>smaVal and ema21V>smaV and smaVal<smaValue and not positionOpen
+// buySignal = trend == 1 and trend[1] == -1 and ema21V>smaVal and not positionOpen and (dema>0) and (d2ema>0)
+sellSignaal =d and smaV<close
+// or(open<smaV and close<smaV and ema21V<smaV and not positionClose and close<ema21V and smaVal>smaValue and close<smaValue)
+
+plotBuySignal = buySignaal ? 1 : na 
+plotSellSignal = sellSignaal ? 1 : na
+// Define initial capital and order size
+// Define initial capital and order size
+initialCapital = 100000  // Initial capital in your account
+commissionPerOrder = 0.37  // Commission per order
+
+// Calculate order size based on available capital and commission
+orderSize = (initialCapital*0.01)-commissionPerOrder / close
+
+
+plotshape(plotBuySignal and not positionClose, title="Buy", location=location.belowbar, color=color.rgb(140, 241, 143), style=shape.labelup, text="Buy")
+plotshape(plotSellSignal and not positionOpen, title="Sell", location=location.abovebar, color=color.rgb(255, 136, 136), style=shape.labeldown, text="Sell")
+var float holdings = na
+var float positionSize = na
+var float stopLB = na
+var float stopLS = na
+var bool Buy = false
+var bool sell = false
+var int i = 0
+var int j = 0
+if buySignaal
+    if positionClose
+        positionSize := orderSize
+        strategy.close_all("Sell")
+        if strategy.opentrades > 0
+            positionClose:=true
+        else
+            positionClose:= false
+    else
+        positionSize := orderSize
+        strategy.entry("Buy", strategy.long, qty=positionSize)
+        strategy.exit("Exit Long", "Buy", qty_percent=Q, profit= Take, loss=Stop,trail_points=trailstop*10,trail_offset=trailofset*10)
+    // i := i+1
+        positionOpen:=true
+        
+    //     strategy.close_all("Sell")
+    //     positionClose:=false
+
+if sellSignaal
+    if positionOpen
+    //  positionSize := orderSize
+        strategy.close_all("Buy")
+        if strategy.opentrades > 0
+            positionOpen:=true
+        else
+            positionOpen:= false
+    else
+        positionSize := orderSize
+        strategy.entry("Sell", strategy.short, qty=positionSize)
+        strategy.exit("Exit Short", "Sell", qty_percent=Q, profit= Take, loss=Stop,trail_points=trailstop*10,trail_offset=trailofset*10)
+    // j:= j+1
+        positionClose:= true
+
+alertcondition(buySignaal, title=" BUY", message="Buy NOW !!!!!!")
+alertcondition(sellSignaal, title=" SELL", message=" Sell NOW !!!!!!")
+
+// closeBuy = close<ema21V
+closeBuy =  close<smaV and close[1]>smaV[1]
+closeSell = close>smaV and close[1]<smaV[1]
+if closeBuy
+    if positionOpen
+        positionSize := orderSize
+        strategy.close_all("Buy")
+        positionOpen := false
+        plotSellSignal := 0
+        plotBuySignal := 1
+        Buy:=true
+
+if closeSell
+    if positionClose
+        positionSize := orderSize
+        strategy.close_all("Sell")
+        positionClose := false
+        plotBuySignal := 0
+        plotSellSignal := 1
+        sell:=true
+alertcondition(Buy, title=" BUY", message=" close Buy NOW !!!!!!")
+alertcondition(sell, title=" SELL", message=" close Sell NOW !!!!!!")
+Buy:= false
+sell:=false
