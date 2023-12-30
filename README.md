@@ -1,10 +1,10 @@
-# Modified_SuperTrend_Stocks
+# Alpha-Stock is an algorithm which I made by Modified SuperTrend indicator
 
 **Strategy Published on Trading-View**
 
 This Strategy was tested on Stocks mainly of NSE it uses a super trend indicator with others to generate signals and provide good statistical results and profit percent on many pairs
 
-**Results depend on realtime and it may vary according to the changes in stock price This image was taken at 22:47 December 30,2023 and Stock is Nifty at 15 min TimeFrame**
+**Results depend on real-time and it may vary according to the changes in stock price This image was taken at 22:47 December 30,2023 and Stock is Nifty at 15 min TimeFrame**
 
 
 
